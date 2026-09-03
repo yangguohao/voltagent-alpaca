@@ -2,6 +2,7 @@
 
 **Alpaca AI Trading Agents Hackathon**  
 Track: Options / Volatility  
+Public repo: https://github.com/yangguohao/voltagent-alpaca  
 Runtime: `alpaca-py` SDK paper trading (Options Level 3)  
 AI: Groq `qwen/qwen3.8-27b` + `openai/gpt-oss-120b`  
 Schedule: America/New_York market-hours daemon
