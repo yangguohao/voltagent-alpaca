@@ -1,0 +1,27 @@
+# Groq model routing configuration
+models:
+  fast:
+    id: openai/gpt-oss-20b
+    role: daily_triage
+    max_input_tokens: 1000
+    max_output_tokens: 512
+    rate_limits:
+      rpm: 25
+      rpd: 900
+      tpd: 180000
+    tasks:
+      - strategy_selection
+      - intraday_review
+
+  smart:
+    id: openai/gpt-oss-120b
+    role: major_decisions
+    max_input_tokens: 2000
+    max_output_tokens: 512
+    rate_limits:
+      rpm: 25
+      rpd: 900
+      tpd: 180000
+    tasks:
+      - regime_detection
+      - trade_review
