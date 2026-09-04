@@ -12,7 +12,7 @@ The model can advise. Deterministic Python authorizes and trades.
 | Strategies | Long straddle, strangle, iron condor |
 | Clock | `America/New_York` market-hours daemon |
 
-Hackathon write-up: [`SUBMISSION.md`](SUBMISSION.md) · Video shot list: [`VIDEO.md`](VIDEO.md)
+Hackathon write-up: [`SUBMISSION.md`](SUBMISSION.md)
 
 ---
 

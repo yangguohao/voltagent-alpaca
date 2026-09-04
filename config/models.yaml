@@ -1,7 +1,7 @@
 # Groq model routing configuration
 models:
   fast:
-    id: openai/gpt-oss-20b
+    id: qwen/qwen3.8-27b
     role: daily_triage
     max_input_tokens: 1000
     max_output_tokens: 512

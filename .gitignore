@@ -16,4 +16,5 @@ logs/
 .pytest_cache/
 .mypy_cache/
 tmp.md
+VIDEO.md
 .DS_Store
