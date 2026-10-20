@@ -12,6 +12,8 @@ build/
 *.sqlite
 data/cache/
 logs/
+ai_agent/data/cache/
+ai_agent/logs/
 *.pid
 .pytest_cache/
 .mypy_cache/
