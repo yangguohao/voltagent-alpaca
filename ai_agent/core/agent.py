@@ -8,6 +8,9 @@ from ai_agent.core.state import StateStore
 from alpaca_infra.clients import create_clients
 from alpaca_infra.market_data import MarketDataService
 from alpaca_infra.options_chain import OptionsChainService
+from tradier_infra import OptionsChainService as TradierOptionsChainService
+from tradier_infra import OptionQuoteService as TradierOptionQuoteService
+from tradier_infra import create_client as create_tradier_client
 from ai_agent.execution.exit_manager import ExitManager
 from alpaca_infra.execution.executor import OrderExecutor
 from soxl_strategy.manager import SoxlCoveredCallManager
@@ -39,7 +42,16 @@ class TradingAgent:
         self.state = StateStore(self.settings.state_db_path)
         self.clients = create_clients(self.settings)
         self.market_data = MarketDataService(self.clients)
-        self.options_chain = OptionsChainService(self.clients)
+        provider = self.settings.option_data_provider.lower()
+        quote_service = None
+        if provider == "tradier":
+            tradier = create_tradier_client(self.settings)
+            self.options_chain = TradierOptionsChainService(tradier)
+            quote_service = TradierOptionQuoteService(tradier)
+        elif provider == "alpaca":
+            self.options_chain = OptionsChainService(self.clients)
+        else:
+            raise ValueError("OPTION_DATA_PROVIDER must be 'alpaca' or 'tradier'")
         self.metrics = MetricsService(self.clients)
         self.risk_gate = RiskGate(self.settings)
         self.regime_gate = RegimeGate(
@@ -47,7 +59,13 @@ class TradingAgent:
             enabled=self.settings.regime_gate_enabled,
         )
         self.position_sizer = PositionSizer(self.settings)
-        self.executor = OrderExecutor(self.clients, self.state, self.settings, dry_run=dry_run)
+        self.executor = OrderExecutor(
+            self.clients,
+            self.state,
+            self.settings,
+            dry_run=dry_run,
+            quote_service=quote_service,
+        )
         self.exit_manager = ExitManager(self.clients, self.settings, self.executor)
         self.soxl_manager = SoxlCoveredCallManager(
             self.clients,

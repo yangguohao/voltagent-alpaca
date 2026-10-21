@@ -41,13 +41,14 @@ class OrderExecutor:
         state: TradeLog,
         settings: ExecutionSettings,
         dry_run: bool = True,
+        quote_service=None,
     ) -> None:
         self.clients = clients
         self.state = state
         self.dry_run = dry_run
         self.settings = settings
         self.pricer = LimitPricer(
-            quote_service=OptionQuoteService(clients),
+            quote_service=quote_service or OptionQuoteService(clients),
             slippage_pct=settings.limit_slippage_pct,
             fallback_to_market=settings.quote_fallback_market,
         )

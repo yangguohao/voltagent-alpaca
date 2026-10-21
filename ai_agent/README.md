@@ -139,6 +139,10 @@ tests/
 Runtime uses the **SDK**. MCP is for development inspection of the same paper account
 (`../alpaca_infra/mcp/README.md`).
 
+To calculate option signals from Tradier's live production feed while keeping Alpaca
+for paper/live execution, set `OPTION_DATA_PROVIDER=tradier` and `TRADIER_API_KEY`.
+Tradier Sandbox is intentionally not used because its market data is delayed.
+
 ---
 
 ## Safety

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     alpaca_secret_key: str = ""
     alpaca_paper: bool = True
 
+    # Tradier live market data; Alpaca remains the execution broker.
+    option_data_provider: str = "alpaca"  # alpaca | tradier
+    tradier_api_key: str = ""
+
     # Groq
     groq_api_key: str = ""
     groq_model_fast: str = "qwen/qwen3.8-27b"
