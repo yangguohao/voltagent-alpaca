@@ -73,6 +73,7 @@ class TradingAgent:
             self.market_data,
             self.options_chain,
             self.executor,
+            state=self.state,
         )
 
         self.signal_engine = SignalEngine([VolatilitySignalGenerator()])

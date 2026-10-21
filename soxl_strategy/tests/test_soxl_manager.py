@@ -148,3 +148,16 @@ def test_manager_rebalances_defensive_state_into_soxx_on_paper():
 
     assert manager.run() == ["test-stock-order"]
     assert executor.orders[0] == ("SOXX", "buy", 1800, "soxl_underlying_rebalance")
+
+
+def test_manager_checks_same_underlying_allocation_only_once_per_day():
+    clients = SimpleNamespace(trading=RebalanceTrading([]))
+    executor = FakeExecutor()
+    settings = Settings(soxl_underlying_rebalance_enabled=True, alpaca_paper=True)
+    manager = SoxlCoveredCallManager(clients, settings, DeepDefenseMarketData(), None, executor)
+    today = date(2026, 10, 21)
+
+    assert manager.run(today=today) == ["test-stock-order"]
+    assert manager.run(today=today) == []
+    assert manager.run(today=today + timedelta(days=1)) == ["test-stock-order"]
+    assert len(executor.orders) == 2

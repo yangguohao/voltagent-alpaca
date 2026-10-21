@@ -115,6 +115,8 @@ See `.env.example`. Highlights:
 - `SOXL_STRATEGY_ENABLED=true` enables the rules in `../soxl_strategy/soxl.md`: actual SOXL shares,
   SOXX +5% over five sessions, QQQ 252-session trend/30-session reversal block,
   5–12 DTE calls nearest 0.20 delta, and mandatory T-1 close.
+- Underlying allocation is checked once per trading day; the 30-minute loop remains active for
+  covered-call entry and mandatory exit checks.
 
 Decision audit prefixes in `logs/agent.log`: `[AI:regime]`, `[AI:selector]`, `[AI:reviewer]`, `[DECISION]`, `[EXIT]`.
 
