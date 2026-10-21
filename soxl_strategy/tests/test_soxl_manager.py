@@ -28,6 +28,16 @@ class BearMarketData(FakeMarketData):
         return [{"open": 100, "close": 100, "volume": 100} for _ in range(320)]
 
 
+class DeepDefenseMarketData(FakeMarketData):
+    def get_daily_bars(self, symbol, days):
+        if symbol == "QQQ":
+            return super().get_daily_bars(symbol, days)
+        return [
+            {"open": close, "close": close, "volume": 100}
+            for close in ([100.0] * 300 + [70.0] * 20)
+        ]
+
+
 class FakeExecutor:
     def __init__(self):
         self.orders = []
@@ -35,6 +45,10 @@ class FakeExecutor:
     def submit(self, candidate, qty):
         self.orders.append((candidate, qty))
         return "test-order"
+
+    def submit_stock(self, symbol, side, qty, strategy):
+        self.orders.append((symbol, side, qty, strategy))
+        return "test-stock-order"
 
 
 class FakeTrading:
@@ -50,6 +64,14 @@ class FakeTrading:
 
     def get_calendar(self, request):
         return self.calendar
+
+
+class RebalanceTrading(FakeTrading):
+    def get_clock(self):
+        return SimpleNamespace(is_open=True)
+
+    def get_account(self):
+        return SimpleNamespace(equity="100000")
 
 
 def _stock(qty=200):
@@ -116,3 +138,13 @@ def test_manager_closes_call_when_v27_targets_defensive_asset():
     candidate, qty = executor.orders[0]
     assert qty == 1
     assert candidate.metadata["exit_reason"] == "underlying_exit_signal"
+
+
+def test_manager_rebalances_defensive_state_into_soxx_on_paper():
+    clients = SimpleNamespace(trading=RebalanceTrading([]))
+    executor = FakeExecutor()
+    settings = Settings(soxl_underlying_rebalance_enabled=True, alpaca_paper=True)
+    manager = SoxlCoveredCallManager(clients, settings, DeepDefenseMarketData(), None, executor)
+
+    assert manager.run() == ["test-stock-order"]
+    assert executor.orders[0] == ("SOXX", "buy", 1800, "soxl_underlying_rebalance")

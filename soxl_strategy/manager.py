@@ -38,13 +38,16 @@ class SoxlCoveredCallManager:
         self.options_chain = options_chain
         self.executor = executor
 
-    def _positions(self) -> tuple[int, list]:
+    def _positions(self) -> tuple[int, list, dict[str, int]]:
         shares = 0
         short_calls = []
+        stocks: dict[str, int] = {}
         for position in self.clients.trading.get_all_positions():
             symbol = position.symbol
             side = str(position.side).lower()
             qty = abs(int(float(position.qty)))
+            if symbol in {"SOXL", "SOXX"} and "long" in side:
+                stocks[symbol] = qty
             if symbol == "SOXL" and "long" in side:
                 shares = qty
             elif (
@@ -53,7 +56,48 @@ class SoxlCoveredCallManager:
                 and "short" in side
             ):
                 short_calls.append(position)
-        return shares, short_calls
+        return shares, short_calls, stocks
+
+    def _rebalance_underlying(self, decision, stocks: dict[str, int]) -> str | None:
+        if not self.settings.soxl_underlying_rebalance_enabled:
+            return None
+        if not self.settings.alpaca_paper:
+            logger.error("[SOXL] automatic underlying rebalance is restricted to paper accounts")
+            return None
+        if not self.clients.trading.get_clock().is_open:
+            logger.info("[SOXL] market closed; underlying rebalance deferred")
+            return None
+
+        open_orders = self.clients.trading.get_orders(
+            filter=GetOrdersRequest(status=QueryOrderStatus.OPEN),
+        )
+        if any(getattr(order, "symbol", None) in {"SOXL", "SOXX"} for order in open_orders):
+            logger.info("[SOXL] underlying rebalance deferred; stock order already open")
+            return None
+
+        target = decision.target_symbol
+        for symbol in ("SOXL", "SOXX"):
+            if symbol != target and stocks.get(symbol, 0) > 0:
+                return self.executor.submit_stock(symbol, "sell", stocks[symbol], "soxl_underlying_rebalance")
+
+        if target is None:
+            return None
+        price = self.market_data.get_latest_price(target)
+        if not price:
+            logger.warning("[SOXL] no %s price for underlying rebalance", target)
+            return None
+        equity = float(self.clients.trading.get_account().equity)
+        target_qty = int(equity * decision.target_allocation / price)
+        current_qty = stocks.get(target, 0)
+        difference = target_qty - current_qty
+        if difference == 0:
+            return None
+        side = "buy" if difference > 0 else "sell"
+        logger.info(
+            "[SOXL] rebalance %s %s qty=%d current=%d target=%d",
+            side, target, abs(difference), current_qty, target_qty,
+        )
+        return self.executor.submit_stock(target, side, abs(difference), "soxl_underlying_rebalance")
 
     def _has_working_option_order(self) -> bool:
         try:
@@ -93,7 +137,7 @@ class SoxlCoveredCallManager:
     def run(self, today: date | None = None) -> list[str]:
         qqq_bars = self.market_data.get_daily_bars("QQQ", days=320)
         soxx_bars = self.market_data.get_daily_bars("SOXX", days=320)
-        shares, short_calls = self._positions()
+        shares, short_calls, stocks = self._positions()
         setup = evaluate_soxl_setup(qqq_bars, soxx_bars, shares)
         logger.info(
             "[SOXL] eligible=%s state=%s target=%s@%.0f%% reason=%s shares=%d "
@@ -129,6 +173,16 @@ class SoxlCoveredCallManager:
                         submitted.append(order_id)
 
         if submitted or not setup.eligible or self._has_working_option_order():
+            if submitted:
+                return submitted
+            rebalance_id = self._rebalance_underlying(setup.underlying, stocks)
+            if rebalance_id:
+                submitted.append(rebalance_id)
+            return submitted
+
+        rebalance_id = self._rebalance_underlying(setup.underlying, stocks)
+        if rebalance_id:
+            submitted.append(rebalance_id)
             return submitted
 
         covered_capacity = shares // 100 - sum(abs(int(float(position.qty))) for position in short_calls)

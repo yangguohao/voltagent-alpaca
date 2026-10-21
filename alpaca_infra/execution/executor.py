@@ -1,9 +1,11 @@
 """Order execution and status tracking."""
 
 import time
+from datetime import datetime, timezone
 from typing import Protocol
 
-from alpaca.trading.enums import QueryOrderStatus
+from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
+from alpaca.trading.requests import MarketOrderRequest
 
 from alpaca_infra.clients import AlpacaClients
 from alpaca_infra.option_quotes import OptionQuoteService
@@ -101,6 +103,34 @@ class OrderExecutor:
             "Submitted order %s status=%s limit=%s qty=%s",
             order.id, order.status, candidate.limit_price, qty,
         )
+        return client_order_id
+
+    def submit_stock(self, symbol: str, side: str, qty: int, strategy: str) -> str | None:
+        client_order_id = (
+            f"{strategy}-{symbol}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        )
+        payload = {"symbol": symbol, "side": side, "qty": qty, "order_type": "market"}
+        if self.dry_run:
+            logger.info("[DRY RUN] Would submit stock %s %s qty=%d", side, symbol, qty)
+            self.state.log_trade(client_order_id, symbol, strategy, "dry_run", payload)
+            return client_order_id
+
+        request = MarketOrderRequest(
+            symbol=symbol,
+            qty=qty,
+            side=OrderSide.BUY if side == "buy" else OrderSide.SELL,
+            time_in_force=TimeInForce.DAY,
+            client_order_id=client_order_id,
+        )
+        try:
+            order = self.clients.trading.submit_order(request)
+        except Exception as exc:
+            logger.error("Stock order submission failed for %s: %s", symbol, exc)
+            self.state.log_trade(client_order_id, symbol, strategy, "error", {**payload, "error": str(exc)})
+            return None
+        payload["order_id"] = str(order.id)
+        self.state.log_trade(client_order_id, symbol, strategy, str(order.status), payload)
+        logger.info("Submitted stock order %s %s qty=%d status=%s", side, symbol, qty, order.status)
         return client_order_id
 
     def wait_for_fill(self, client_order_id: str, timeout_sec: int = 60) -> str:

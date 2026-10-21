@@ -49,6 +49,7 @@ class Settings(BaseSettings):
 
     # SOXL trend + covered-call overlay (opt in)
     soxl_strategy_enabled: bool = False
+    soxl_underlying_rebalance_enabled: bool = False
 
     # Scheduler / daemon
     market_timezone: str = "America/New_York"

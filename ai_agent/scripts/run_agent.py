@@ -49,7 +49,7 @@ def main() -> None:
 
     if args.mode == "daemon":
         print(f"Starting daemon (timezone={settings.market_timezone}, dry_run={dry_run})")
-        run_daemon(agent, settings)
+        run_daemon(agent, settings, soxl_only=args.phase == "soxl")
         return
 
     if args.mode == "schedule":

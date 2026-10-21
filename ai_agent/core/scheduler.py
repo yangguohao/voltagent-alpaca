@@ -80,7 +80,7 @@ def _next_intraday_slot(now: datetime, interval_minutes: int) -> datetime:
     return now.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
-async def _run_intraday_loop(agent: TradingAgent, settings: Settings) -> None:
+async def _run_intraday_loop(agent: TradingAgent, settings: Settings, soxl_only: bool = False) -> None:
     tz = _tz(settings)
     end_time = _intraday_end_time(settings)
     premarket = _premarket_time(settings)
@@ -91,7 +91,10 @@ async def _run_intraday_loop(agent: TradingAgent, settings: Settings) -> None:
         if now.time() > end_time:
             break
         if now.time() >= premarket:
-            await agent.run_intraday_cycle()
+            if soxl_only:
+                agent.soxl_manager.run()
+            else:
+                await agent.run_intraday_cycle()
 
         now = datetime.now(tz)
         if now.time() > end_time:
@@ -107,13 +110,14 @@ async def _run_intraday_loop(agent: TradingAgent, settings: Settings) -> None:
             await asyncio.sleep(sleep_s)
 
 
-async def _run_trading_day(agent: TradingAgent, settings: Settings) -> None:
+async def _run_trading_day(agent: TradingAgent, settings: Settings, soxl_only: bool = False) -> None:
     tz = _tz(settings)
     now = datetime.now(tz)
     logger.info("=== Trading day %s ===", now.date())
 
-    await agent.run_premarket()
-    await _run_intraday_loop(agent, settings)
+    if not soxl_only:
+        await agent.run_premarket()
+    await _run_intraday_loop(agent, settings, soxl_only=soxl_only)
 
     postmarket_at = _combine(now.date(), _postmarket_time(settings), tz)
     now = datetime.now(tz)
@@ -125,7 +129,7 @@ async def _run_trading_day(agent: TradingAgent, settings: Settings) -> None:
     logger.info("=== Trading day complete ===")
 
 
-def run_daemon(agent: TradingAgent, settings: Settings) -> None:
+def run_daemon(agent: TradingAgent, settings: Settings, soxl_only: bool = False) -> None:
     """Run forever: sleep outside market hours, trade during the session."""
     logger.info(
         "Daemon started (tz=%s, premarket=%02d:%02d, postmarket=%02d:%02d, intraday every %d min)",
@@ -145,7 +149,7 @@ def run_daemon(agent: TradingAgent, settings: Settings) -> None:
             _sleep_until(wake_at)
             continue
 
-        _run_async(_run_trading_day(agent, settings))
+        _run_async(_run_trading_day(agent, settings, soxl_only=soxl_only))
 
         wake_at = _next_trading_day_premarket(_now(settings), settings)
         logger.info("Session finished — sleeping until %s", wake_at.isoformat())
