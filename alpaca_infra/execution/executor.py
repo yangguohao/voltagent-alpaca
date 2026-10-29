@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Protocol
 
 from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
-from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest
 
 from alpaca_infra.clients import AlpacaClients
 from alpaca_infra.option_quotes import OptionQuoteService
@@ -47,6 +47,7 @@ class OrderExecutor:
         self.state = state
         self.dry_run = dry_run
         self.settings = settings
+        self.stock_quote_service = quote_service
         self.pricer = LimitPricer(
             quote_service=quote_service or OptionQuoteService(clients),
             slippage_pct=settings.limit_slippage_pct,
@@ -111,17 +112,39 @@ class OrderExecutor:
             f"{strategy}-{symbol}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
         )
         payload = {"symbol": symbol, "side": side, "qty": qty, "order_type": "market"}
+        limit_price = None
+        if self.stock_quote_service is not None:
+            try:
+                quote = self.stock_quote_service.get_quotes([symbol]).get(symbol)
+            except Exception as exc:
+                logger.error("Stock quote lookup failed for %s: %s", symbol, exc)
+                return None
+            if quote is None or quote.bid_price <= 0 or quote.ask_price <= 0:
+                logger.error("Stock order skipped for %s: missing live bid/ask", symbol)
+                return None
+            limit_price = round(quote.ask_price if side == "buy" else quote.bid_price, 2)
+            payload.update({
+                "order_type": "limit",
+                "limit_price": limit_price,
+                "bid": quote.bid_price,
+                "ask": quote.ask_price,
+            })
         if self.dry_run:
-            logger.info("[DRY RUN] Would submit stock %s %s qty=%d", side, symbol, qty)
+            logger.info(
+                "[DRY RUN] Would submit stock %s %s qty=%d type=%s limit=%s",
+                side, symbol, qty, payload["order_type"], limit_price,
+            )
             self.state.log_trade(client_order_id, symbol, strategy, "dry_run", payload)
             return client_order_id
 
-        request = MarketOrderRequest(
+        request_type = LimitOrderRequest if limit_price is not None else MarketOrderRequest
+        request = request_type(
             symbol=symbol,
             qty=qty,
             side=OrderSide.BUY if side == "buy" else OrderSide.SELL,
             time_in_force=TimeInForce.DAY,
             client_order_id=client_order_id,
+            **({"limit_price": limit_price} if limit_price is not None else {}),
         )
         try:
             order = self.clients.trading.submit_order(request)
@@ -131,7 +154,10 @@ class OrderExecutor:
             return None
         payload["order_id"] = str(order.id)
         self.state.log_trade(client_order_id, symbol, strategy, str(order.status), payload)
-        logger.info("Submitted stock order %s %s qty=%d status=%s", side, symbol, qty, order.status)
+        logger.info(
+            "Submitted stock order %s %s qty=%d status=%s type=%s limit=%s",
+            side, symbol, qty, order.status, payload["order_type"], limit_price,
+        )
         return client_order_id
 
     def wait_for_fill(self, client_order_id: str, timeout_sec: int = 60) -> str:

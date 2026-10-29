@@ -13,8 +13,9 @@ logger = logging.getLogger("alpaca_infra.market_data")
 
 
 class MarketDataService:
-    def __init__(self, clients: AlpacaClients) -> None:
+    def __init__(self, clients: AlpacaClients, quote_service=None) -> None:
         self.clients = clients
+        self.quote_service = quote_service
 
     def get_daily_bars(self, symbol: str, days: int = 252) -> list[dict]:
         end = datetime.now(timezone.utc)
@@ -43,6 +44,13 @@ class MarketDataService:
         return result[-days:]
 
     def get_latest_price(self, symbol: str) -> float | None:
+        if self.quote_service is not None:
+            try:
+                quote = self.quote_service.get_quotes([symbol]).get(symbol)
+                if quote and quote.bid_price > 0 and quote.ask_price > 0:
+                    return (quote.bid_price + quote.ask_price) / 2
+            except Exception as exc:
+                logger.warning("Failed to fetch live quote for %s: %s", symbol, exc)
         bars = self.get_daily_bars(symbol, days=5)
         if not bars:
             return None

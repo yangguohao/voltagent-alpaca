@@ -24,8 +24,6 @@ logger = get_logger("soxl_manager")
 
 
 class SoxlCoveredCallManager:
-    REBALANCE_STATE_KEY = "soxl_underlying_rebalance_key"
-
     def __init__(
         self,
         clients,
@@ -40,18 +38,6 @@ class SoxlCoveredCallManager:
         self.market_data = market_data
         self.options_chain = options_chain
         self.executor = executor
-        self.state = state
-        self._last_rebalance_key: str | None = None
-
-    def _stored_rebalance_key(self) -> str | None:
-        if self.state is not None:
-            return self.state.get(self.REBALANCE_STATE_KEY)
-        return self._last_rebalance_key
-
-    def _mark_rebalance_checked(self, key: str) -> None:
-        self._last_rebalance_key = key
-        if self.state is not None:
-            self.state.set(self.REBALANCE_STATE_KEY, key)
 
     def _positions(self) -> tuple[int, list, dict[str, int]]:
         shares = 0
@@ -100,15 +86,7 @@ class SoxlCoveredCallManager:
             if symbol != target and stocks.get(symbol, 0) > 0:
                 return self.executor.submit_stock(symbol, "sell", stocks[symbol], "soxl_underlying_rebalance")
 
-        rebalance_key = (
-            f"{today or date.today()}|{target or 'cash'}|{decision.target_allocation:.6f}"
-        )
-        if self._stored_rebalance_key() == rebalance_key:
-            logger.info("[SOXL] underlying allocation already checked today")
-            return None
-
         if target is None:
-            self._mark_rebalance_checked(rebalance_key)
             return None
         price = self.market_data.get_latest_price(target)
         if not price:
@@ -119,18 +97,15 @@ class SoxlCoveredCallManager:
         current_qty = stocks.get(target, 0)
         difference = target_qty - current_qty
         if difference == 0:
-            self._mark_rebalance_checked(rebalance_key)
             return None
         side = "buy" if difference > 0 else "sell"
         logger.info(
-            "[SOXL] rebalance %s %s qty=%d current=%d target=%d",
-            side, target, abs(difference), current_qty, target_qty,
+            "[SOXL] rebalance %s %s qty=%d current=%d target=%d price=%.2f equity=%.2f",
+            side, target, abs(difference), current_qty, target_qty, price, equity,
         )
         order_id = self.executor.submit_stock(
             target, side, abs(difference), "soxl_underlying_rebalance",
         )
-        if order_id:
-            self._mark_rebalance_checked(rebalance_key)
         return order_id
 
     def _has_working_option_order(self) -> bool:

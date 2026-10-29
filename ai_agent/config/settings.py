@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 
     # Scheduler / daemon
     market_timezone: str = "America/New_York"
-    intraday_interval_minutes: int = 30
+    intraday_interval_minutes: int = 10
     premarket_hour: int = 9
     premarket_minute: int = 25
     intraday_end_hour: int = 15

@@ -99,7 +99,7 @@ Daemon schedule (Eastern Time):
 | Time | Action |
 |------|--------|
 | 09:25 | Premarket regime |
-| 09:25–15:30 | Exit + entry every 30 min |
+| 09:25–15:30 | Exit + entry every 10 min |
 | 15:50 | Postmarket metrics |
 | After close / weekends | Sleep until next weekday 09:25 ET |
 
@@ -115,8 +115,7 @@ See `.env.example`. Highlights:
 - `SOXL_STRATEGY_ENABLED=true` enables the rules in `../soxl_strategy/soxl.md`: actual SOXL shares,
   SOXX +5% over five sessions, QQQ 252-session trend/30-session reversal block,
   5–12 DTE calls nearest 0.20 delta, and mandatory T-1 close.
-- Underlying allocation is checked once per trading day; the 30-minute loop remains active for
-  covered-call entry and mandatory exit checks.
+- Underlying allocation, covered-call entry, and mandatory exit checks run every 10 minutes.
 
 Decision audit prefixes in `logs/agent.log`: `[AI:regime]`, `[AI:selector]`, `[AI:reviewer]`, `[DECISION]`, `[EXIT]`.
 
@@ -141,8 +140,10 @@ tests/
 Runtime uses the **SDK**. MCP is for development inspection of the same paper account
 (`../alpaca_infra/mcp/README.md`).
 
-To calculate option signals from Tradier's live production feed while keeping Alpaca
-for paper/live execution, set `OPTION_DATA_PROVIDER=tradier` and `TRADIER_API_KEY`.
+To calculate stock and option signals from Tradier's live production feed while keeping
+Alpaca for paper/live execution, set `OPTION_DATA_PROVIDER=tradier` and `TRADIER_API_KEY`.
+SOXL/SOXX rebalances use the Tradier bid/ask midpoint for sizing and submit a protected
+Alpaca limit order at the ask for buys or bid for sells.
 Tradier Sandbox is intentionally not used because its market data is delayed.
 
 ---

@@ -138,7 +138,7 @@ Closes are reverse MLeg orders (`sell_to_close` / `buy_to_close`).
 | ET time | Action |
 |---------|--------|
 | 09:25 | Premarket regime |
-| 09:25–15:30 | Intraday: **exit cycle first**, then scan watchlist every 30 min |
+| 09:25–15:30 | Intraday: **exit cycle first**, then scan watchlist every 10 min |
 | 15:50 | Postmarket metrics snapshot |
 | After 15:50 / weekends | Sleep until next weekday 09:25 ET |
 

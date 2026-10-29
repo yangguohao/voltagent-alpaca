@@ -41,7 +41,6 @@ class TradingAgent:
         self.settings = settings or get_settings()
         self.state = StateStore(self.settings.state_db_path)
         self.clients = create_clients(self.settings)
-        self.market_data = MarketDataService(self.clients)
         provider = self.settings.option_data_provider.lower()
         quote_service = None
         if provider == "tradier":
@@ -52,6 +51,7 @@ class TradingAgent:
             self.options_chain = OptionsChainService(self.clients)
         else:
             raise ValueError("OPTION_DATA_PROVIDER must be 'alpaca' or 'tradier'")
+        self.market_data = MarketDataService(self.clients, quote_service=quote_service)
         self.metrics = MetricsService(self.clients)
         self.risk_gate = RiskGate(self.settings)
         self.regime_gate = RegimeGate(
